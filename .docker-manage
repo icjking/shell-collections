@@ -1,0 +1,93 @@
+#!/bin/bash
+###################################
+# docker启动脚本
+# 命令: sh .docker-run project-name v1.0.0
+# Created by cjking on 2020/07/08.
+###################################
+
+# 镜像名
+NAME=$1
+
+# 镜像版本
+VERSION=$2
+
+# 镜像版本
+PORT=$3
+
+# docker私服地址
+readonly REGISTRY_URL=docker-registry.fmock.cn
+
+SYSTEM=""
+
+# 判断操作系统
+function checkSystem() {
+	a=$(uname -a)
+
+	b="Darwin"
+	c="centos"
+	d="ubuntu"
+
+	SYSTEM=""
+	if [[ $a =~ $b ]]; then
+		SYSTEM="mac"
+	elif [[ $a =~ $c ]]; then
+		SYSTEM="centos"
+	elif [[ $a =~ $d ]]; then
+		SYSTEM="ubuntu"
+	else
+		# shellcheck disable=SC2034
+		SYSTEM="$a"
+	fi
+}
+checkSystem
+
+# 统一日志输出
+function log() {
+	if [ "$SYSTEM" == "mac" ]; then
+		echo "\033[32m$1\033[0m"
+	else
+		echo -e "\033[32m$1\033[0m"
+	fi
+}
+
+if [ -z "$NAME" ]; then
+	log "docker镜像名称不能为空!"
+	log "命令格式: sh .docker-manage oral-manage v1.0.0"
+	exit 100
+fi
+
+if [ -z "$VERSION" ]; then
+	log "docker版本号不能为空!"
+	log "命令格式: sh .docker-manage oral-manage v1.0.0"
+	exit 101
+fi
+
+if [ -z "$PORT" ]; then
+	log "PORT is empty, default 8081"
+	log "命令格式: sh .docker-manage oral-manage v1.0.0 8081"
+	PORT=8081
+fi
+
+log "docker镜像拉取中..."
+docker pull "${REGISTRY_URL}"/"${NAME}":"${VERSION}"
+log "docker镜像拉取完成。"
+
+log "docker镜像停止中..."
+docker stop "${NAME}"
+log "docker镜像停止完成。"
+
+log "docker镜像删除中..."
+docker rm "${NAME}"
+log "docker镜像删除完成。"
+
+log "docker镜像启动中..."
+docker run --name "${NAME}" -p "${PORT}":80 -idt "${REGISTRY_URL}"/"${NAME}":"${VERSION}"
+log "docker镜像启动完成。"
+
+# shellcheck disable=SC2181
+if [ $? -eq 0 ]; then
+	log "Run Success"
+	docker ps -a
+else
+	log "Run Failed"
+fi

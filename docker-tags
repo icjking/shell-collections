@@ -1,0 +1,81 @@
+#!/bin/bash
+###################################
+# docker(tag自动识别)启动脚本
+# 依赖安装: sudo yum install jq
+# Created by cjking on 2020/06/29.
+###################################
+
+# Usage
+#######################################
+# 导入tag脚本
+# source ./docker-tags
+#
+# newVersion=$(getNewVersion)
+# log "新的版本号: ${newVersion}"
+#
+# selectVersion=$(openSelect "project-name")
+# log "你选择的版本号是: ${selectVersion}"
+#######################################
+
+IMAGE=$1
+
+SYSTEM=""
+
+# 导入日志脚本
+source ./.log.sh
+
+# 导入增量版本脚本
+source ./update-version.sh
+
+log "IMAGE is: ${IMAGE}"
+log "SYSTEM is: ${SYSTEM}"
+
+if [ -z "$IMAGE" ]; then
+	log "docker镜像名称不能为空!"
+	log "命令格式: sh docker-tags project-name"
+	exit 100
+fi
+
+# ~/.netrc
+# chmod 600 ~/.netrc
+# 文件格式：machine host.domain.com login username password secret
+# 格式释义："login" 和 "password" 只是关键字；实际信息是这些关键字之后的内容
+# machine docker-registry.fmock.cn login username password secret
+# 使用：
+
+ret=$(curl -s --netrc-file ~/.netrc https://docker-registry.fmock.cn/v2/"${IMAGE}"/tags/list)
+tag_list=$(echo "$ret" | jq '.tags')
+
+# shellcheck disable=SC2207
+array=($(echo "$tag_list" | tr -d '[],"'))
+
+function getLastVersion() {
+	local lastVersion=${array[${#array[@]} - 1]}
+	if [ -z "${lastVersion}" ]; then
+		lastVersion="1.0.0" # 默认值
+	fi
+	echo "${lastVersion}"
+	return 0 # 0表示成功，其他值表示失败
+}
+
+lastVersion=$(getLastVersion)
+log "当前最大版本号: ${lastVersion}"
+
+function getNewVersion() {
+	local newVersion
+	# 字符串截取（第一位截取到最后）
+	# 格式: ${string:startIndex:endIndex}
+	newVersion=$(increment_version "${lastVersion:1}")
+	echo "v${newVersion}"
+	return 0 # 0表示成功，其他值表示失败
+}
+
+function openSelect() {
+	select version in "${array[@]}"; do
+		# 版本不能为空
+		if [ -n "${version}" ]; then
+			echo "${version}"
+			break
+		fi
+	done
+}
